@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>StudySprint Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+    color: white;
+}
+
+/* ===== TOP HEADER ===== */
+.top-header {
+    width: 100%;
+    padding: 25px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0,0,0,0.3);
+    box-sizing: border-box;
+}
+
+.header-left h1 {
+    margin: 0;
+    font-size: 38px;
+    font-weight: 800;
+}
+
+.header-left p {
+    margin: 5px 0 0;
+    font-size: 18px;
+    opacity: 0.85;
+}
+
+.logout-btn {
+    padding: 12px 20px;
+    border: none;
+    border-radius: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    background: #ff4d6d;
+    color: white;
+}
+
+/* ===== MAIN DASHBOARD ===== */
+.dashboard {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 30px;
+    padding: 40px;
+}
+
+/* TIMER SECTION */
+.timer-section {
+    background: linear-gradient(135deg,#ff512f,#dd2476);
+    border-radius: 30px;
+    padding: 50px;
+    text-align: center;
+    box-shadow: 0 0 40px rgba(0,0,0,0.5);
+}
+
+.timer {
+    font-size: 95px;
+    margin: 30px 0;
+    font-weight: 900;
+}
+
+input {
+    padding: 12px;
+    width: 160px;
+    border-radius: 12px;
+    border: none;
+    text-align: center;
+    font-size: 18px;
+}
+
+button.control {
+    margin: 10px;
+    padding: 14px 24px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 15px;
+}
+
+.start { background: #00ffcc; }
+.pause { background: #ffb703; }
+.reset { background: #ff4d6d; }
+
+#congratsMessage {
+    margin-top: 20px;
+    font-size: 22px;
+    font-weight: bold;
+}
+
+/* RIGHT PANEL */
+.right-panel {
+    display: grid;
+    grid-template-rows: 1fr 1fr 1fr;
+    gap: 30px;
+}
+
+.card {
+    border-radius: 30px;
+    padding: 30px;
+    text-align: center;
+    font-weight: 800;
+}
+
+.sessions-card {
+    background: linear-gradient(135deg,#11998e,#38ef7d);
+}
+
+.minutes-card {
+    background: linear-gradient(135deg,#f7971e,#ffd200);
+    color: black;
+}
+
+.chart-card {
+    background: white;
+    color: black;
+}
+
+.big-number {
+    font-size: 55px;
+    margin-top: 10px;
+}
+
+.quote {
+    font-style: italic;
+    margin-top: 10px;
+    font-size: 16px;
+    opacity: 0.9;
+}
+</style>
+</head>
+
+<body>
+
+<!-- ===== HEADER ===== -->
+<div class="top-header">
+    <div class="header-left">
+        <h1 id="welcomeText"></h1>
+        <p id="quoteText"></p>
+    </div>
+    <button class="logout-btn" onclick="logout()">Logout</button>
+</div>
+
+<!-- ===== MAIN CONTENT ===== -->
+<div class="dashboard">
+
+    <div class="timer-section">
+        <input type="number" id="minutesInput" placeholder="Enter Minutes">
+
+        <div class="timer" id="timer">00:00</div>
+
+        <button class="control start" onclick="startTimer()">Start</button>
+        <button class="control pause" onclick="pauseTimer()">Pause</button>
+        <button class="control reset" onclick="resetTimer()">Reset</button>
+
+        <div id="congratsMessage"></div>
+    </div>
+
+    <div class="right-panel">
+
+        <div class="card sessions-card">
+            TOTAL SESSIONS
+            <div id="sessionCount" class="big-number">0</div>
+        </div>
+
+        <div class="card minutes-card">
+            TOTAL FOCUS MINUTES
+            <div id="totalMinutes" class="big-number">0</div>
+        </div>
+
+        <div class="card chart-card">
+            <canvas id="myChart"></canvas>
+        </div>
+
+    </div>
+</div>
+
+<script>
+let email = localStorage.getItem("userEmail");
+let name = localStorage.getItem("userName");
+
+if (!email) {
+    window.location.href = "login.html";
+}
+
+document.getElementById("welcomeText").innerText =
+    "Welcome " + name + " 👑";
+
+const quotes = [
+    "Deep focus builds unstoppable momentum.",
+    "Consistency creates mastery.",
+    "Greatness is built in focused minutes.",
+    "You are building discipline right now."
+];
+
+document.getElementById("quoteText").innerText =
+    quotes[Math.floor(Math.random()*quotes.length)];
+
+function logout(){
+    localStorage.clear();
+    window.location.href = "login.html";
+}
+
+let timer;
+let timeLeft = 0;
+let isRunning = false;
+let chart;
+
+window.onload = async function() {
+    const res = await fetch("/userdata");
+    const user = await res.json();
+
+    if(user){
+        document.getElementById("sessionCount").innerText = user.sessions;
+        document.getElementById("totalMinutes").innerText = user.totalMinutes;
+        createChart(user.sessions, user.totalMinutes);
+    }
+};
+
+function createChart(sessions, minutes){
+    const ctx = document.getElementById("myChart").getContext("2d");
+    chart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: ["Sessions","Minutes"],
+            datasets: [{
+                label: "Progress",
+                data: [sessions, minutes]
+            }]
+        }
+    });
+}
+
+function startTimer() {
+    if (isRunning) return;
+
+    if (timeLeft === 0) {
+        let minutes = document.getElementById("minutesInput").value;
+        if (!minutes) return alert("Enter minutes!");
+        timeLeft = minutes * 60;
+    }
+
+    isRunning = true;
+
+    timer = setInterval(() => {
+        timeLeft--;
+        updateDisplay();
+
+        if (timeLeft <= 0) {
+            clearInterval(timer);
+            isRunning = false;
+            completeSession();
+        }
+    }, 1000);
+}
+
+function pauseTimer() {
+    clearInterval(timer);
+    isRunning = false;
+}
+
+function resetTimer() {
+    clearInterval(timer);
+    timeLeft = 0;
+    isRunning = false;
+    updateDisplay();
+}
+
+function updateDisplay() {
+    let mins = Math.floor(timeLeft / 60);
+    let secs = timeLeft % 60;
+    document.getElementById("timer").innerText =
+        `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+}
+
+async function completeSession() {
+    let minutes = Number(document.getElementById("minutesInput").value);
+
+    const response = await fetch("/api/add-session", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            email: email,
+            minutes: minutes
+        })
+    });
+
+    const data = await response.json();
+
+    document.getElementById("congratsMessage").innerText =
+        "🎉 Congratulations! You focused for " + minutes + " minutes!";
+
+    document.getElementById("sessionCount").innerText = data.sessions;
+    document.getElementById("totalMinutes").innerText = data.totalMinutes;
+
+    chart.data.datasets[0].data = [data.sessions, data.totalMinutes];
+    chart.update();
+}
+
+updateDisplay();
+</script>
+
+</body>
+</html>
